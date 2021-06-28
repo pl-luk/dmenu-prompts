@@ -1,30 +1,46 @@
 #!/bin/bash
 
+# Handle wlan.sh --help
+if [ $1 = "--help" ] || [ $1 = "-h" ]
+then 
+	echo -e "usage: wlan.sh \e[3minterface\e[0m"
+	exit 0
+fi
+
+
+# Handle interface option
+interface=$1
+
+if [ -z $interface ]
+then
+	echo "No interface provided. Exiting..."
+fi
+
 # Enable wpa_supplicant if not running already
 wpa_pid=$(pidof wpa_supplicant)
 
 if [ -z $wpa_pid ]
 then
-	sudo wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+	sudo wpa_supplicant -B -i $interface -c /etc/wpa_supplicant/wpa_supplicant-$interface.conf
 
 	# Try to run dhcpcd (if a network was already configured it will get an ip)
-	sudo dhcpcd wlan0
+	sudo dhcpcd $interface
 fi
 
 # Scan for wifi connections
 ratpoison -c "echo Scanning..."
-ret=$(sudo wpa_cli -i wlan0 scan)
+ret=$(sudo wpa_cli -i $interface scan)
 
 # If scan failed for whatever reason: quit
 if [ $ret = "FAIL" ]
 then
-	ratpoison -c "echo Failed to scan wlan0"
+	ratpoison -c "echo Failed to scan $interface"
 	exit 1
 fi
 sleep 4
 
 # Display every available connection in dmenu
-wlan=$(sudo wpa_cli -i wlan0 scan_results | tail -n +2 | tr '\t' ' ' | dmenu -c -h 33 -l 20)
+wlan=$(sudo wpa_cli -i $interface scan_results | tail -n +2 | tr '\t' ' ' | dmenu -c -h 33 -l 20)
 
 # Handle escape press
 if [ -z $wlan ]
@@ -37,7 +53,7 @@ IFS=' ' read -r -a array <<< "$wlan"
 wifi_selected="${array[-1]}"
 
 # Check if network is already added
-existing_networks=$(sudo wpa_cli -i wlan0 list_networks | tail -n +2 | sed 's/\t\t/»/g' | grep -v » | grep -o -P '[0-9]\t.+?(?=\t)')
+existing_networks=$(sudo wpa_cli -i $interface list_networks | tail -n +2 | sed 's/\t\t/»/g' | grep -v » | grep -o -P '[0-9]\t.+?(?=\t)')
 id_ssid_tuple=$(echo $existing_networks | grep -o -P "[0-9] ($wifi_selected?(?= )|$wifi_selected$)")
 
 # If available then set $network to existing id
@@ -47,7 +63,7 @@ then
 	ssid="$(echo $wifi_selected | xxd -ps | sed 's/0a//g')"
 	
 	# Add new connection and get id
-	network=$(sudo wpa_cli -i wlan0 add_network)
+	network=$(sudo wpa_cli -i $interface add_network)
 	
 	# Read password from dmenu
 	password=$(echo "" | dmenu -c -h 33 -p Password:)
@@ -62,7 +78,7 @@ then
 	psk="$(wpa_passphrase $wifi_selected $password | grep psk | tail -n 1 | sed 's/psk=//g')"
 	
 	# Set ssid
-	ret=$(sudo wpa_cli -i wlan0 set_network $network ssid $ssid)
+	ret=$(sudo wpa_cli -i $interface set_network $network ssid $ssid)
 	
 	# If ssid set failed: quit
 	if [ $ret = "FAIL" ]
@@ -72,7 +88,7 @@ then
 	fi
 	
 	# Set psk
-	ret=$(sudo wpa_cli -i wlan0 set_network $network psk $psk)
+	ret=$(sudo wpa_cli -i $interface set_network $network psk $psk)
 	
 	# If psk set failed: quit
 	if [ $ret = "FAIL" ]
@@ -88,7 +104,7 @@ else
 fi
 
 # Select network
-ret=$(sudo wpa_cli -i wlan0 select_network $network)
+ret=$(sudo wpa_cli -i $interface select_network $network)
 
 # IF select network failed: quit
 if [ $ret = "FAIL" ]
@@ -98,7 +114,7 @@ then
 fi
 
 # Enable network
-ret=$(sudo wpa_cli -i wlan0 enable_network $network)
+ret=$(sudo wpa_cli -i $interface enable_network $network)
 
 # IF enable network failed: quit
 if [ $ret = "FAIL" ]
@@ -111,7 +127,7 @@ ratpoison -c "echo Connecting to $wifi_selected"
 sleep 3
 
 # Save current config
-ret=$(sudo wpa_cli -i wlan0 save_config)
+ret=$(sudo wpa_cli -i $interface save_config)
 
 if [ $ret = "FAIL" ]
 then
@@ -119,5 +135,5 @@ then
 fi
 
 # Get ip
-sudo dhcpcd wlan0
+sudo dhcpcd $interface
 exit $?
