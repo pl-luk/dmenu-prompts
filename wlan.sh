@@ -3,9 +3,33 @@
 # Handle wlan.sh --help
 if [ $1 = "--help" ] || [ $1 = "-h" ]
 then 
-	echo -e "usage: wlan.sh \e[3minterface\e[0m"
+	echo -e "usage: wlan.sh \e[3minterface\e[0m \n       wlan.sh --help/-h \n       wlan.sh --restore \e3minterface\e0m"
 	exit 0
 fi
+
+#Handle wlan.sh --restore (starts wpa_supplicant daemon and tries dhcpcd on last network)
+if [ $1 = "--restore" ]
+then
+	interface=$2
+
+	if [ -z $interface ]
+	then
+		echo "No interface provided. Exiting..."
+		exit 1
+	fi
+
+	# Enable wpa_supplicant if not running already
+	wpa_pid=$(pidof wpa_supplicant)
+	
+	if [ -z $wpa_pid ]
+	then
+		sudo wpa_supplicant -B -i $interface -c /etc/wpa_supplicant/wpa_supplicant-$interface.conf
+	
+		# Try to run dhcpcd (if a network was already configured it will get an ip)
+		sudo dhcpcd $interface
+	fi
+	exit 0
+fi 
 
 
 # Handle interface option
@@ -14,17 +38,7 @@ interface=$1
 if [ -z $interface ]
 then
 	echo "No interface provided. Exiting..."
-fi
-
-# Enable wpa_supplicant if not running already
-wpa_pid=$(pidof wpa_supplicant)
-
-if [ -z $wpa_pid ]
-then
-	sudo wpa_supplicant -B -i $interface -c /etc/wpa_supplicant/wpa_supplicant-$interface.conf
-
-	# Try to run dhcpcd (if a network was already configured it will get an ip)
-	sudo dhcpcd $interface
+	exit 1
 fi
 
 # Scan for wifi connections
