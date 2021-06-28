@@ -20,3 +20,4 @@ This script is a little frontend to wpa_supplicant.
 ### Usage
 * `wlan.sh interface` to run wlan.sh on *interface*.
 * `wlan.sh --help` or `wlan.sh -h`to display a help message.
+* `wlan.sh --restore interface`to setup wpa_supplicant and connect to the last network (use this as autostart in your wm)
